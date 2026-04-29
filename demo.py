@@ -1,101 +1,121 @@
 import pygame
 import torch
-import random
-import sys
+import numpy as np
+
+from game import SnakeGameAI
 from model import Linear_QNet
 
-# INIT
+# -----------------------------
+# INITIALIZE PYGAME
+# -----------------------------
 pygame.init()
 
-WIDTH, HEIGHT = 400, 400
-BLOCK = 20
+# -----------------------------
+# LOAD TRAINED MODEL
+# -----------------------------
+model = Linear_QNet(11, 256, 3)
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("AI Snake Game")
+model.load_state_dict(
+    torch.load("model.pth", map_location=torch.device("cpu"))
+)
 
-font = pygame.font.SysFont("arial", 20)
-
-# LOAD MODEL
-model = Linear_QNet()
-model.load_state_dict(torch.load("model.pth"))
 model.eval()
 
-# GAME VARIABLES
-snake = [(200, 200)]
-direction = (BLOCK, 0)
-food = (random.randrange(0, WIDTH, BLOCK), random.randrange(0, HEIGHT, BLOCK))
-score = 0
+# -----------------------------
+# CREATE GAME
+# -----------------------------
+game = SnakeGameAI(w=400, h=400)
 
-clock = pygame.time.Clock()
+# -----------------------------
+# GET STATE FUNCTION
+# -----------------------------
+def get_state(game):
 
-def get_state():
-    head_x, head_y = snake[0]
+    head = game.snake[0]
+
+    point_l = pygame.Vector2(head.x - 20, head.y)
+    point_r = pygame.Vector2(head.x + 20, head.y)
+    point_u = pygame.Vector2(head.x, head.y - 20)
+    point_d = pygame.Vector2(head.x, head.y + 20)
+
+    dir_l = game.direction == pygame.K_LEFT
+    dir_r = game.direction == pygame.K_RIGHT
+    dir_u = game.direction == pygame.K_UP
+    dir_d = game.direction == pygame.K_DOWN
 
     state = [
-        head_x < BLOCK,
-        head_x > WIDTH - BLOCK*2,
-        head_y < BLOCK,
-        head_y > HEIGHT - BLOCK*2,
-        food[0] < head_x,
-        food[0] > head_x,
-        food[1] < head_y,
-        food[1] > head_y,
-        direction == (BLOCK, 0),
-        direction == (-BLOCK, 0),
-        direction == (0, BLOCK),
+
+        # Danger straight
+        (dir_r and game.is_collision(point_r)) or
+        (dir_l and game.is_collision(point_l)) or
+        (dir_u and game.is_collision(point_u)) or
+        (dir_d and game.is_collision(point_d)),
+
+        # Danger right
+        (dir_u and game.is_collision(point_r)) or
+        (dir_d and game.is_collision(point_l)) or
+        (dir_l and game.is_collision(point_u)) or
+        (dir_r and game.is_collision(point_d)),
+
+        # Danger left
+        (dir_d and game.is_collision(point_r)) or
+        (dir_u and game.is_collision(point_l)) or
+        (dir_r and game.is_collision(point_u)) or
+        (dir_l and game.is_collision(point_d)),
+
+        # Move direction
+        dir_l,
+        dir_r,
+        dir_u,
+        dir_d,
+
+        # Food location
+        game.food.x < game.head.x,
+        game.food.x > game.head.x,
+        game.food.y < game.head.y,
+        game.food.y > game.head.y
     ]
 
-    return torch.tensor(state, dtype=torch.float)
+    return np.array(state, dtype=int)
 
+# -----------------------------
 # GAME LOOP
-while True:
+# -----------------------------
+running = True
+
+while running:
+
+    # CLOSE WINDOW EVENT
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
+            running = False
 
-    state = get_state()
-    prediction = model(state)
+    # GET CURRENT STATE
+    state = get_state(game)
+
+    state0 = torch.tensor(state, dtype=torch.float)
+
+    # PREDICT MOVE
+    prediction = model(state0)
+
     move = torch.argmax(prediction).item()
 
-    dx, dy = direction
+    # CONVERT TO MOVE FORMAT
+    final_move = [0, 0, 0]
+    final_move[move] = 1
 
-    # MOVE LOGIC
-    if move == 1:  # right turn
-        direction = (dy, -dx)
-    elif move == 2:  # left turn
-        direction = (-dy, dx)
+    # PLAY STEP
+    reward, done, score = game.play_step(final_move)
 
-    new_head = (snake[0][0] + direction[0], snake[0][1] + direction[1])
+    # WINDOW TITLE
+    pygame.display.set_caption(f"Snake AI | Score: {score}")
 
-    # COLLISION
-    if (
-        new_head[0] < 0 or new_head[0] >= WIDTH or
-        new_head[1] < 0 or new_head[1] >= HEIGHT or
-        new_head in snake
-    ):
-        print("Game Over! Final Score:", score)
-        pygame.quit()
-        sys.exit()
+    # GAME OVER
+    if done:
+        print("Final Score:", score)
+        running = False
 
-    snake.insert(0, new_head)
-
-    if new_head == food:
-        score += 1
-        food = (random.randrange(0, WIDTH, BLOCK), random.randrange(0, HEIGHT, BLOCK))
-    else:
-        snake.pop()
-
-    # DRAW
-    screen.fill((0, 0, 0))
-
-    for s in snake:
-        pygame.draw.rect(screen, (0, 255, 0), (*s, BLOCK, BLOCK))
-
-    pygame.draw.rect(screen, (255, 0, 0), (*food, BLOCK, BLOCK))
-
-    text = font.render(f"Score: {score}", True, (255, 255, 255))
-    screen.blit(text, (10, 10))
-
-    pygame.display.flip()
-    clock.tick(10)
+# -----------------------------
+# QUIT GAME
+# -----------------------------
+pygame.quit()
