@@ -1,4 +1,4 @@
-imimport pygame
+import pygame
 import torch
 import random
 import sys
