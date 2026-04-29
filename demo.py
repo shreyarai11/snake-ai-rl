@@ -2,7 +2,7 @@ import pygame
 import torch
 import numpy as np
 
-from game import SnakeGameAI
+from game.game import SnakeGameAI
 from model import Linear_QNet
 
 # -----------------------------
