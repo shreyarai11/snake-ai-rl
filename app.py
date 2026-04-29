@@ -1,71 +1,76 @@
+# Replace your ENTIRE `streamlit_app.py` with this code
+
+```python
 import streamlit as st
+import pygame
 import numpy as np
 import time
-import random
+import torch
 
-st.title("🐍 AI Snake Game (Visual)")
+from game.snake_game import SnakeGameAI
+from ai.agent import Agent
 
-GRID_SIZE = 10
+# ----------------------------
+# STREAMLIT PAGE SETTINGS
+# ----------------------------
+st.set_page_config(page_title="Snake AI", layout="centered")
 
-def create_grid(snake, food):
-    grid = np.zeros((GRID_SIZE, GRID_SIZE))
-    
-    for s in snake:
-        grid[s[0]][s[1]] = 1
-    
-    grid[food[0]][food[1]] = 2
-    return grid
+st.title("🐍 Snake AI using Deep Q-Learning")
+st.write("Live AI gameplay running inside Streamlit")
 
-def move_snake(snake, direction):
-    head = snake[0]
+# ----------------------------
+# LOAD MODEL
+# ----------------------------
+agent = Agent()
+agent.model.load_state_dict(torch.load('model/model.pth'))
+agent.model.eval()
 
-    if direction == 0:   # up
-        new_head = [head[0]-1, head[1]]
-    elif direction == 1: # right
-        new_head = [head[0], head[1]+1]
-    elif direction == 2: # down
-        new_head = [head[0]+1, head[1]]
-    else:                # left
-        new_head = [head[0], head[1]-1]
+# ----------------------------
+# START GAME
+# ----------------------------
+game = SnakeGameAI(w=400, h=400)
 
-    snake.insert(0, new_head)
-    snake.pop()
-    return snake
+score_placeholder = st.empty()
+frame_placeholder = st.empty()
 
-if st.button("▶ Run AI Snake"):
+# ----------------------------
+# GAME LOOP
+# ----------------------------
+while True:
 
-    snake = [[5, 5]]
-    food = [random.randint(0, 9), random.randint(0, 9)]
+    # GET CURRENT STATE
+    state_old = agent.get_state(game)
 
-    grid_placeholder = st.empty()
+    # GET ACTION FROM AI
+    final_move = agent.get_action(state_old)
 
-    score = 0
+    # PLAY STEP
+    reward, done, score = game.play_step(final_move)
 
-    for _ in range(50):
+    # UPDATE SCORE
+    score_placeholder.markdown(f"## 🎯 Score: {score}")
 
-        direction = random.randint(0, 3)  # AI (random for now)
+    # ----------------------------
+    # CONVERT PYGAME SCREEN TO IMAGE
+    # ----------------------------
+    frame = pygame.surfarray.array3d(game.display)
 
-        snake = move_snake(snake, direction)
+    # ROTATE FOR CORRECT DISPLAY
+    frame = np.rot90(frame)
 
-        head = snake[0]
+    # FLIP HORIZONTALLY
+    frame = np.flipud(frame)
 
-        # collision check
-        if (
-            head[0] < 0 or head[0] >= GRID_SIZE or
-            head[1] < 0 or head[1] >= GRID_SIZE
-        ):
-            break
+    # SHOW FRAME IN STREAMLIT
+    frame_placeholder.image(frame)
 
-        # food eat
-        if head == food:
-            score += 1
-            snake.append(snake[-1])
-            food = [random.randint(0, 9), random.randint(0, 9)]
+    # GAME OVER
+    if done:
+        st.success(f"Game Over! Final Score: {score}")
+        break
 
-        grid = create_grid(snake, food)
+    # CONTROL SPEED
+    time.sleep(0.05)
+```
 
-        grid_placeholder.dataframe(grid)
-
-        time.sleep(0.2)
-
-    st.success(f"Final Score: {score}")
+---
