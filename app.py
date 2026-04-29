@@ -1,6 +1,3 @@
-# Replace your ENTIRE `streamlit_app.py` with this code
-
-```python
 import streamlit as st
 import pygame
 import numpy as np
@@ -10,38 +7,43 @@ import torch
 from game.snake_game import SnakeGameAI
 from ai.agent import Agent
 
-# ----------------------------
-# STREAMLIT PAGE SETTINGS
-# ----------------------------
+# -----------------------------
+# PAGE SETTINGS
+# -----------------------------
 st.set_page_config(page_title="Snake AI", layout="centered")
 
 st.title("🐍 Snake AI using Deep Q-Learning")
-st.write("Live AI gameplay running inside Streamlit")
+st.write("AI is playing Snake in real time")
 
-# ----------------------------
+# -----------------------------
 # LOAD MODEL
-# ----------------------------
+# -----------------------------
 agent = Agent()
-agent.model.load_state_dict(torch.load('model/model.pth'))
+
+agent.model.load_state_dict(
+    torch.load("model/model.pth", map_location=torch.device("cpu"))
+)
+
 agent.model.eval()
 
-# ----------------------------
-# START GAME
-# ----------------------------
+# -----------------------------
+# CREATE GAME
+# -----------------------------
 game = SnakeGameAI(w=400, h=400)
 
+# PLACEHOLDERS
 score_placeholder = st.empty()
 frame_placeholder = st.empty()
 
-# ----------------------------
+# -----------------------------
 # GAME LOOP
-# ----------------------------
+# -----------------------------
 while True:
 
     # GET CURRENT STATE
     state_old = agent.get_state(game)
 
-    # GET ACTION FROM AI
+    # GET ACTION
     final_move = agent.get_action(state_old)
 
     # PLAY STEP
@@ -50,18 +52,16 @@ while True:
     # UPDATE SCORE
     score_placeholder.markdown(f"## 🎯 Score: {score}")
 
-    # ----------------------------
-    # CONVERT PYGAME SCREEN TO IMAGE
-    # ----------------------------
+    # CONVERT SCREEN TO IMAGE
     frame = pygame.surfarray.array3d(game.display)
 
-    # ROTATE FOR CORRECT DISPLAY
+    # ROTATE IMAGE
     frame = np.rot90(frame)
 
-    # FLIP HORIZONTALLY
+    # FLIP IMAGE
     frame = np.flipud(frame)
 
-    # SHOW FRAME IN STREAMLIT
+    # SHOW IMAGE
     frame_placeholder.image(frame)
 
     # GAME OVER
@@ -69,8 +69,5 @@ while True:
         st.success(f"Game Over! Final Score: {score}")
         break
 
-    # CONTROL SPEED
+    # SPEED CONTROL
     time.sleep(0.05)
-```
-
----
