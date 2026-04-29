@@ -1,4 +1,4 @@
 streamlit
-pygame
-torch
+pygame-ce
 numpy
+torch --index-url https://download.pytorch.org/whl/cpu
